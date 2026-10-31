@@ -152,7 +152,7 @@ export function LoginForm() {
         className={`service-action-link auth-submit${loading ? " is-loading" : ""}`}
         disabled={loading}
       >
-        <span>{loading ? "Signing in…" : "Log in"}</span>
+        <span>{loading ? "Signing in…" : "Sign in"}</span>
         {loading && <i aria-hidden="true" />}
       </button>
     </form>
@@ -189,27 +189,65 @@ export function SignupForm() {
     setLoading(true);
 
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { data, error: authError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
+      const normalizedEmail = email.trim();
+
+      // Step 1: Create user server-side with email pre-confirmed
+      const response = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password,
+        }),
       });
 
-      if (authError) {
-        setError(authError.message || "Unable to create the account.");
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        // Fallback: If signup endpoint failed unexpectedly, attempt direct client signup
+        const supabase = createSupabaseBrowserClient();
+        const { data: fallbackData, error: fallbackError } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+        });
+
+        if (fallbackError) {
+          setError(result?.error || fallbackError.message || "Unable to create the account.");
+          setLoading(false);
+          return;
+        }
+
+        if (fallbackData.session && fallbackData.user) {
+          identifyUser(fallbackData.user);
+          const next = safeNext(searchParams.get("next"));
+          window.location.replace(next && next !== "/" ? next : "/account");
+          return;
+        }
+
+        setError(result?.error || "Unable to create the account.");
         setLoading(false);
         return;
       }
 
-      if (data.session && data.user) {
-        identifyUser(data.user);
-        const next = safeNext(searchParams.get("next"));
-        window.location.href = next && next !== "/" ? next : "/account";
+      // Step 2: Sign the user in immediately so they are automatically logged in
+      const supabase = createSupabaseBrowserClient();
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+
+      if (signInError) {
+        setError(signInError.message || "Account created, but could not sign in automatically. Please log in.");
+        setLoading(false);
         return;
       }
 
-      setMessage("Account created! Check your email to confirm your address, then log in.");
-      setLoading(false);
+      if (signInData.user) {
+        identifyUser(signInData.user);
+      }
+
+      const next = safeNext(searchParams.get("next"));
+      window.location.replace(next && next !== "/" ? next : "/account");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred.");
       setLoading(false);
