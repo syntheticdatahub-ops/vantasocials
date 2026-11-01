@@ -165,8 +165,9 @@ export function sameProviderPlatform(providerPlatform: string, vantaPlatform: { 
 
   // Handle aliases like twitter -> x
   const aliases: Record<string, string[]> = {
-    x: ["twitter", "x"],
-    twitter: ["twitter", "x"],
+    x: ["twitter", "x", "x-twitter"],
+    twitter: ["twitter", "x", "x-twitter"],
+    "x-twitter": ["twitter", "x", "x-twitter"],
   };
 
   if (normalized === nameNorm || normalized === slugNorm) return true;
