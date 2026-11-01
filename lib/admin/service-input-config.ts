@@ -132,10 +132,12 @@ export function normalizeMappingDraft(raw: unknown, field: ServiceInputField | (
   const definition = inputType ? getInputTypeDefinition(inputType) : null;
   if (!definition) throw new Error("VANTA input type is missing or unsupported.");
   if (providerParameterKey === "link") {
-    const urlTargetCompatible =
-      inputType === expectedTargetType ||
-      ((inputType === "url" || inputType === "post_url") && (expectedTargetType === "url" || expectedTargetType === "post_url")) ||
-      (expectedTargetType === "username" && (inputType === "url" || inputType === "username"));
+    const urlTargetCompatible = Boolean(
+      inputType === "url" ||
+      inputType === "username" ||
+      inputType === "post_url" ||
+      String(inputType) === String(expectedTargetType)
+    );
     if (!urlTargetCompatible || transform.id !== "normalize_url") {
       throw new Error("ReliableSMM 'link' requires a URL field compatible with the VANTA service target and the normalize_url transform.");
     }

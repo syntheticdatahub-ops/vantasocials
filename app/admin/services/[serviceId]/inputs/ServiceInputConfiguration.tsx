@@ -213,10 +213,10 @@ export function ServiceInputConfiguration({
   const linkFieldCompatible = Boolean(
     selectedField &&
     (
-      selectedField.input_type === service.target_type ||
-      ((selectedField.input_type === "url" || selectedField.input_type === "post_url") &&
-        (service.target_type === "url" || service.target_type === "post_url")) ||
-      (service.target_type === "username" && (selectedField.input_type === "url" || selectedField.input_type === "username"))
+      selectedField.input_type === "url" ||
+      selectedField.input_type === "username" ||
+      selectedField.input_type === "post_url" ||
+      String(selectedField.input_type) === String(service.target_type)
     )
   );
   const mappingFormValid = Boolean(
