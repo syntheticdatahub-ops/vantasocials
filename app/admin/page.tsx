@@ -55,11 +55,14 @@ export default async function AdminPage() {
   let orders: number | null = null;
   let walletCount: number | null = null;
   let ghsBalanceSample = 0;
+  let totalDepositedGHS = 0;
+  let totalRevenueGHS = 0;
   let catalogCount: number | null = null;
 
   let customersError: unknown = null;
   let ordersError: unknown = null;
   let walletsError: unknown = null;
+  let financialError: unknown = null;
   let catalogError: unknown = null;
 
   let recent: RecentOrderItem[] = [];
@@ -83,15 +86,24 @@ export default async function AdminPage() {
 
     const [
       { data: recentOrders, error: rErr },
-      { data: health, error: hErr }
+      { data: health, error: hErr },
+      { data: depositTxs, error: depErr },
+      { data: paidOrders, error: revErr }
     ] = await Promise.all([
       db.from("orders").select("public_order_id,total,currency,payment_status,fulfillment_status,created_at,profiles(email),services(name)").order("created_at", { ascending: false }).limit(10),
       db.from("provider_health").select("configured,balance,balance_currency,last_balance_check,balance_status").eq("provider", "reliablesmm").maybeSingle(),
+      db.from("wallet_transactions").select("amount_minor").eq("type", "DEPOSIT").eq("status", "COMPLETED").eq("currency", "GHS"),
+      db.from("orders").select("total").eq("payment_status", "PAID").eq("currency", "GHS"),
     ]);
     recent = (recentOrders ?? []) as unknown as RecentOrderItem[];
     recentError = rErr;
     providerHealth = health;
     providerHealthError = hErr;
+
+    const totalDepMinor = (depositTxs ?? []).reduce((sum, t) => sum + Number(t.amount_minor ?? 0), 0);
+    totalDepositedGHS = totalDepMinor / 100;
+    totalRevenueGHS = (paidOrders ?? []).reduce((sum, o) => sum + Number(o.total ?? 0), 0);
+    financialError = depErr || revErr;
   } else {
     // Fallback: bounded queries without pulling 1,000 raw wallets into memory
     const [
@@ -100,14 +112,18 @@ export default async function AdminPage() {
       { data: wallets, count: wCount, error: wErr },
       { data: recentOrders, error: rErr },
       { data: health, error: hErr },
-      { count: catCount, error: catErr }
+      { count: catCount, error: catErr },
+      { data: depositTxs, error: depErr },
+      { data: paidOrders, error: revErr }
     ] = await Promise.all([
       db.from("profiles").select("id", { count: "planned", head: true }),
       db.from("orders").select("id", { count: "planned", head: true }),
       db.from("wallets").select("balance_minor,currency", { count: "planned" }).eq("currency", "GHS").limit(100),
       db.from("orders").select("public_order_id,total,currency,payment_status,fulfillment_status,created_at,profiles(email),services(name)").order("created_at", { ascending: false }).limit(10),
       db.from("provider_health").select("configured,balance,balance_currency,last_balance_check,balance_status").eq("provider", "reliablesmm").maybeSingle(),
-      db.from("provider_catalog_services").select("id", { count: "planned", head: true }).eq("provider", "reliablesmm")
+      db.from("provider_catalog_services").select("id", { count: "planned", head: true }).eq("provider", "reliablesmm"),
+      db.from("wallet_transactions").select("amount_minor").eq("type", "DEPOSIT").eq("status", "COMPLETED").eq("currency", "GHS"),
+      db.from("orders").select("total").eq("payment_status", "PAID").eq("currency", "GHS")
     ]);
     customers = custCount;
     orders = ordCount;
@@ -117,9 +133,14 @@ export default async function AdminPage() {
     recent = (recentOrders ?? []) as unknown as RecentOrderItem[];
     providerHealth = health;
 
+    const totalDepMinor = (depositTxs ?? []).reduce((sum, t) => sum + Number(t.amount_minor ?? 0), 0);
+    totalDepositedGHS = totalDepMinor / 100;
+    totalRevenueGHS = (paidOrders ?? []).reduce((sum, o) => sum + Number(o.total ?? 0), 0);
+
     customersError = cErr;
     ordersError = oErr;
     walletsError = wErr;
+    financialError = depErr || revErr;
     recentError = rErr;
     providerHealthError = hErr;
     catalogError = catErr;
@@ -148,7 +169,7 @@ export default async function AdminPage() {
           <h1>WELCOME BACK PLAY.ATO</h1>
           <p>Monitor VANTA operations and manage activity in real time.</p>
         </div>
-        <span className="admin-live-badge">{[customersError, ordersError, walletsError, recentError, providerHealthError, catalogError, rpcError].some(Boolean) && !rpcMetrics ? "● Some data unavailable" : "● Live data"}</span>
+        <span className="admin-live-badge">{[customersError, ordersError, walletsError, financialError, recentError, providerHealthError, catalogError, rpcError].some(Boolean) && !rpcMetrics ? "● Some data unavailable" : "● Live data"}</span>
         <div className="admin-overview-mark" aria-hidden="true">V</div>
       </header>
 
@@ -166,11 +187,24 @@ export default async function AdminPage() {
           </article>
         </div>
         <article className="admin-wallet-focus">
-          <span>{rpcMetrics ? "Total GHS wallet liability" : "GHS wallet balance sample"}</span>
-          {walletsError ? <AdminQueryError message="Wallet balance unavailable." /> : (
+          <span>Total Money Processed (Deposits)</span>
+          {financialError ? <AdminQueryError message="Financial balance unavailable." /> : (
             <>
-              <strong>{(ghsBalanceSample / 100).toFixed(2)} <em>GHS</em></strong>
-              <small>{rpcMetrics ? `Aggregated across all ${walletCount ?? 0} wallets` : (walletSampleComplete ? `GHS balances among all ${walletCount ?? 0} wallets` : `Sample across recent wallets; not total liability`)}</small>
+              <strong>{totalDepositedGHS.toFixed(2)} <em>GHS</em></strong>
+              <small>All-time payments deposited into VANTA via payment gateway</small>
+
+              <div className="admin-wallet-financial-breakdown">
+                <div className="admin-wallet-financial-item">
+                  <span>Paid Orders (Revenue)</span>
+                  <strong>{totalRevenueGHS.toFixed(2)} <em>GHS</em></strong>
+                  <small>Spent on fulfilled/active orders</small>
+                </div>
+                <div className="admin-wallet-financial-item">
+                  <span>Current Wallet Liability</span>
+                  <strong>{(ghsBalanceSample / 100).toFixed(2)} <em>GHS</em></strong>
+                  <small>{rpcMetrics ? `Unspent across all ${walletCount ?? 0} wallets` : (walletSampleComplete ? `Unspent across all ${walletCount ?? 0} wallets` : `Unspent sample balance`)}</small>
+                </div>
+              </div>
             </>
           )}
           <div className="admin-wallet-orbit" aria-hidden="true" />

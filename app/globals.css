@@ -3422,3 +3422,49 @@ button, a, .button, .how-cta, .step-card, .catalog-card, .dashboard-card {
   filter: brightness(1.1);
   transform: translateY(-1px);
 }
+
+
+.admin-wallet-financial-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(216, 131, 255, 0.15);
+  position: relative;
+  z-index: 2;
+}
+.admin-wallet-financial-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.admin-wallet-financial-item span {
+  color: #bdacd0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.admin-wallet-financial-item strong {
+  margin: 0 !important;
+  font-size: 24px !important;
+  color: #fff !important;
+  letter-spacing: -0.03em !important;
+  line-height: 1.2 !important;
+}
+.admin-wallet-financial-item em {
+  font-size: 0.6em !important;
+  color: #d39aff !important;
+  font-style: normal;
+}
+.admin-wallet-financial-item small {
+  color: #a99bb2 !important;
+  font-size: 12px !important;
+}
+@media (max-width: 600px) {
+  .admin-wallet-financial-breakdown {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
